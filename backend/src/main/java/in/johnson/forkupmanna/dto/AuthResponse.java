@@ -14,7 +14,16 @@ import lombok.NoArgsConstructor;
 public class AuthResponse {
     private boolean success;
     private String message;
-    private String accessToken;
-    private String refreshToken;
-    private UserResponse user;
+    private AuthData data;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class AuthData {
+        private String accessToken;
+        private String refreshToken;
+        private UserResponse user;
+    }
 }

@@ -12,6 +12,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+
 @Entity
 @Table(name = "users")
 @Data
@@ -46,6 +47,12 @@ public class User {
     @Column(nullable = false)
     @Builder.Default
     private String status = "ACTIVE";
+
+    @Column(name = "password_reset_token", length = 36)
+    private String passwordResetToken;
+
+    @Column(name = "password_reset_token_expiry")
+    private LocalDateTime passwordResetTokenExpiry;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)

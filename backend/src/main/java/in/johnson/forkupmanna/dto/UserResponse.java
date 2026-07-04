@@ -10,11 +10,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Builder
 public class UserResponse {
-    private Long id;
-    private String uuid;
+    private String id; // = uuid externally
     private String name;
     private String email;
     private String phone;
     private String role;
     private String status;
+    private String createdAt;
 }

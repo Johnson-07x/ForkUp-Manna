@@ -1,0 +1,15 @@
+CREATE TABLE IF NOT EXISTS notifications (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    notification_id CHAR(36) NOT NULL UNIQUE,
+    user_id BIGINT NOT NULL,
+    title VARCHAR(200) NOT NULL,
+    message TEXT NOT NULL,
+    type ENUM('DONATION_CREATED','DONATION_CLAIMED','CLAIM_APPROVED','CLAIM_REJECTED','DELIVERY_ASSIGNED','DELIVERY_COMPLETED','SYSTEM') NOT NULL,
+    is_read BOOLEAN NOT NULL DEFAULT FALSE,
+    reference_id VARCHAR(36),
+    reference_type VARCHAR(50),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_user_id (user_id),
+    INDEX idx_is_read (is_read),
+    CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
