@@ -30,40 +30,7 @@ import { DonationMap } from '@/components/map/DonationMap';
 import { PageHeader } from '@/components/common/PageHeader';
 import { uploadApi } from '@/api/uploads';
 import { useDonation, useUpdateDonation } from '@/hooks/useDonations';
-
-interface LocalityItem { name: string; description: string; }
-
-async function reverseGeocode(lat: number, lng: number) {
-  const res = await fetch(
-    `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
-  );
-  if (!res.ok) throw new Error(`Geocoding HTTP error ${res.status}`);
-  const data = await res.json();
-
-  const informative: LocalityItem[] = data.localityInfo?.informative ?? [];
-  const administrative: LocalityItem[] = data.localityInfo?.administrative ?? [];
-
-  const road = informative.find((i) =>
-    /road|street|avenue|lane|highway/i.test(i.description ?? '')
-  )?.name ?? '';
-
-  const neighbourhood = informative.find((i) =>
-    /neighbourhood|suburb|quarter|hamlet|village/i.test(i.description ?? '')
-  )?.name ?? '';
-
-  const streetParts = [road, neighbourhood].filter(Boolean);
-  const street = streetParts.join(', ') || data.locality || '';
-
-  const adminCity = administrative.find((a) =>
-    /city|town|municipality|taluk/i.test(a.description ?? '')
-  )?.name ?? '';
-
-  const city = data.city || adminCity || data.locality || '';
-  const state = data.principalSubdivision || '';
-  const pincode = (data.postcode || '').replace(/\s/g, '').slice(0, 6);
-
-  return { street, city, state, pincode };
-}
+import { detectLocation, reverseGeocode } from '@/utils/geocoding';
 
 const schema = z.object({
   title:              z.string().min(3, 'Title must be at least 3 characters').max(200),
@@ -106,10 +73,11 @@ export function EditDonationPage() {
   const [uploading, setUploading] = useState(false);
   const [locating, setLocating] = useState(false);
 
-  const { register, control, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormValues>({
+  const { register, control, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { foodType: 'VEG' },
   });
+  const [wAddress, wCity, wState, wPincode] = watch(['address', 'city', 'state', 'pincode']);
 
   useEffect(() => {
     if (donation) {
@@ -135,51 +103,47 @@ export function EditDonationPage() {
     }
   }, [donation, reset]);
 
-  const applyGeolocation = useCallback(async (lat: number, lng: number, showToast: boolean) => {
+  const applyGeoResult = useCallback((
+    lat: number, lng: number,
+    geo: { street: string; city: string; state: string; pincode: string }
+  ) => {
+    setMapPos({ lat, lng });
+    if (geo.street)  setValue('address', geo.street,  { shouldValidate: true });
+    if (geo.city)    setValue('city',    geo.city,    { shouldValidate: true });
+    if (geo.state)   setValue('state',   geo.state,   { shouldValidate: true });
+    if (geo.pincode && /^[0-9]{6}$/.test(geo.pincode))
+      setValue('pincode', geo.pincode, { shouldValidate: true });
+  }, [setValue]);
+
+  const handleMapClick = useCallback(async (lat: number, lng: number) => {
     setMapPos({ lat, lng });
     try {
       const geo = await reverseGeocode(lat, lng);
-      const filled: string[] = [];
-      if (geo.street) { setValue('address', geo.street, { shouldValidate: true }); filled.push('address'); }
-      if (geo.city)   { setValue('city', geo.city, { shouldValidate: true }); filled.push('city'); }
-      if (geo.state)  { setValue('state', geo.state, { shouldValidate: true }); filled.push('state'); }
-      if (geo.pincode && /^[0-9]{6}$/.test(geo.pincode)) {
-        setValue('pincode', geo.pincode, { shouldValidate: true }); filled.push('pincode');
-      }
-      if (showToast && filled.length > 0) {
-        toast.success(`Location detected! Filled: ${filled.join(', ')}.`);
+      applyGeoResult(lat, lng, geo);
+    } catch {
+      // Map pinned; silent fail — user can fill fields manually
+    }
+  }, [applyGeoResult]);
+
+  const handleUseCurrentLocation = async () => {
+    setLocating(true);
+    try {
+      const loc = await detectLocation();
+      applyGeoResult(loc.lat, loc.lng, loc);
+      if (loc.source === 'ip') {
+        toast.info('GPS unavailable — filled city/state from network location. Please verify.');
+      } else {
+        toast.success('Location detected and address fields filled!');
       }
     } catch (err) {
-      console.error('Reverse geocode error:', err);
-      if (showToast) toast.warning('Location pinned on map, but address lookup failed. Please fill the fields manually.');
+      if ((err as Error).message === 'PERMISSION_DENIED') {
+        toast.error('Location access denied. Please allow location in your browser settings.');
+      } else {
+        toast.error('Could not detect your location. Click on the map or fill the address manually.');
+      }
+    } finally {
+      setLocating(false);
     }
-  }, [setValue]);
-
-  const handleMapClick = useCallback((lat: number, lng: number) => {
-    applyGeolocation(lat, lng, false);
-  }, [applyGeolocation]);
-
-  const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      toast.error('Geolocation is not supported by your browser.');
-      return;
-    }
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        applyGeolocation(coords.latitude, coords.longitude, true)
-          .finally(() => setLocating(false));
-      },
-      (err) => {
-        setLocating(false);
-        if (err.code === err.PERMISSION_DENIED) {
-          toast.error('Location access denied. Please allow location in your browser settings.');
-        } else {
-          toast.error('Could not get your location. Please try again or enter address manually.');
-        }
-      },
-      { timeout: 12000, maximumAge: 30000 }
-    );
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -422,19 +386,25 @@ export function EditDonationPage() {
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12 }}>
                     <TextField label="Street address *" error={!!errors.address}
-                               helperText={errors.address?.message} {...register('address')} />
+                               helperText={errors.address?.message}
+                               slotProps={{ inputLabel: { shrink: !!wAddress } }}
+                               {...register('address')} />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 4 }}>
                     <TextField label="City *" error={!!errors.city} helperText={errors.city?.message}
+                               slotProps={{ inputLabel: { shrink: !!wCity } }}
                                {...register('city')} />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 4 }}>
                     <TextField label="State *" error={!!errors.state} helperText={errors.state?.message}
+                               slotProps={{ inputLabel: { shrink: !!wState } }}
                                {...register('state')} />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 4 }}>
                     <TextField label="Pincode" error={!!errors.pincode}
-                               helperText={errors.pincode?.message} {...register('pincode')} />
+                               helperText={errors.pincode?.message}
+                               slotProps={{ inputLabel: { shrink: !!wPincode } }}
+                               {...register('pincode')} />
                   </Grid>
                 </Grid>
 

@@ -14,6 +14,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Override
     @Transactional
@@ -43,6 +45,18 @@ public class NotificationServiceImpl implements NotificationService {
                 .build();
         notificationRepository.save(notification);
         log.debug("Notification created for user: {} - {}", user.getEmail(), title);
+
+        // Push to the user's WebSocket session immediately (zero-delay, no polling needed)
+        try {
+            messagingTemplate.convertAndSendToUser(
+                    String.valueOf(user.getId()),
+                    "/queue/notifications",
+                    mapToResponse(notification)
+            );
+            log.debug("[WS] Pushed notification to user {}", user.getId());
+        } catch (Exception e) {
+            log.warn("[WS] Could not push notification to user {}: {}", user.getId(), e.getMessage());
+        }
     }
 
     @Override

@@ -35,6 +35,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import SearchIcon from '@mui/icons-material/Search';
 import { useAuth } from '@/contexts/AuthContext';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { useNotificationSocket } from '@/hooks/useNotificationSocket';
 import { SIDEBAR } from '@/theme/theme';
 import type { UserRole } from '@/types/auth.types';
 
@@ -92,6 +93,7 @@ export function MainLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const { user, logout } = useAuth();
+  useNotificationSocket();
   const navigate = useNavigate();
   const location = useLocation();
 

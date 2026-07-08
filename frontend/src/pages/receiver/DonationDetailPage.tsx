@@ -15,8 +15,11 @@ import {
 } from '@mui/material';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import AssignmentTurnedInIcon from '@mui/icons-material/AssignmentTurnedIn';
+import DirectionsIcon from '@mui/icons-material/Directions';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import PeopleIcon from '@mui/icons-material/People';
+import PhoneIcon from '@mui/icons-material/Phone';
+import PersonIcon from '@mui/icons-material/Person';
 import { format } from 'date-fns';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { PageHeader } from '@/components/common/PageHeader';
@@ -61,6 +64,13 @@ export function ReceiverDonationDetailPage() {
     setConfirmOpen(false);
   };
 
+  const mapsUrl =
+    donation.latitude && donation.longitude
+      ? `https://www.google.com/maps/dir/?api=1&destination=${donation.latitude},${donation.longitude}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+          `${donation.address}, ${donation.city}, ${donation.state}`
+        )}`;
+
   return (
     <Box>
       <PageHeader
@@ -70,9 +80,136 @@ export function ReceiverDonationDetailPage() {
       />
 
       <Grid container spacing={3}>
-        {/* Main content */}
+
+        {/* ── Uber-style pickup map — full width ── */}
+        {donation.latitude && donation.longitude && (
+          <Grid size={{ xs: 12 }}>
+            <Card sx={{ overflow: 'hidden', borderRadius: 2 }}>
+              {/* Floating label overlay on top of map */}
+              <Box sx={{ position: 'relative' }}>
+                <DonationMap
+                  latitude={donation.latitude}
+                  longitude={donation.longitude}
+                  height={400}
+                  sx={{ borderRadius: 0, border: 'none' }}
+                />
+                <Chip
+                  icon={<LocationOnIcon sx={{ color: '#ff4444 !important' }} />}
+                  label="Pickup Point"
+                  size="small"
+                  sx={{
+                    position: 'absolute',
+                    top: 14,
+                    left: 14,
+                    zIndex: 1200,
+                    bgcolor: 'rgba(0,0,0,0.72)',
+                    color: 'white',
+                    fontWeight: 700,
+                    fontSize: '0.72rem',
+                    backdropFilter: 'blur(4px)',
+                  }}
+                />
+              </Box>
+
+              {/* Dark address strip — Uber/Ola style */}
+              <Box
+                sx={{
+                  bgcolor: '#111827',
+                  color: 'white',
+                  px: 2.5,
+                  py: 2,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                }}
+              >
+                {/* Pulsing location dot */}
+                <Box
+                  sx={{
+                    position: 'relative',
+                    width: 14,
+                    height: 14,
+                    flexShrink: 0,
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      inset: 0,
+                      borderRadius: '50%',
+                      bgcolor: '#22c55e',
+                    },
+                    '&::after': {
+                      content: '""',
+                      position: 'absolute',
+                      inset: -5,
+                      borderRadius: '50%',
+                      border: '2px solid #22c55e',
+                      opacity: 0.35,
+                    },
+                  }}
+                />
+
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ opacity: 0.45, textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 0.2 }}
+                  >
+                    Pickup Address
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.4 }}>
+                    {donation.address}
+                  </Typography>
+                  <Typography variant="caption" sx={{ opacity: 0.6 }}>
+                    {donation.city}, {donation.state}
+                    {donation.pincode ? ` – ${donation.pincode}` : ''}
+                  </Typography>
+                </Box>
+
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<DirectionsIcon />}
+                  component="a"
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{ flexShrink: 0, borderRadius: 5, px: 2, fontWeight: 700 }}
+                >
+                  Directions
+                </Button>
+              </Box>
+
+              {/* Pickup instructions strip */}
+              {donation.pickupInstructions && (
+                <Box
+                  sx={{
+                    px: 2.5,
+                    py: 1.5,
+                    bgcolor: 'action.hover',
+                    borderTop: '1px solid',
+                    borderColor: 'divider',
+                    display: 'flex',
+                    gap: 1,
+                    alignItems: 'flex-start',
+                  }}
+                >
+                  <AccessTimeIcon fontSize="small" color="action" sx={{ mt: 0.2 }} />
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, display: 'block' }}>
+                      Pickup Instructions
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {donation.pickupInstructions}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+            </Card>
+          </Grid>
+        )}
+
+        {/* ── Main content ── */}
         <Grid size={{ xs: 12, md: 8 }}>
-          <Card sx={{ mb: 3 }}>
+          <Card>
             <CardContent sx={{ p: 3 }}>
               {donation.imageUrl && (
                 <Box
@@ -121,7 +258,8 @@ export function ReceiverDonationDetailPage() {
                 </Box>
               </Box>
 
-              {donation.pickupInstructions && (
+              {/* Show pickup instructions here only when there's no map (no coordinates) */}
+              {!donation.latitude && donation.pickupInstructions && (
                 <>
                   <Divider sx={{ my: 2 }} />
                   <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
@@ -134,25 +272,31 @@ export function ReceiverDonationDetailPage() {
               )}
             </CardContent>
           </Card>
-
-          {donation.latitude && donation.longitude && (
-            <Card>
-              <CardContent sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>Pickup Location</Typography>
-                <DonationMap latitude={donation.latitude} longitude={donation.longitude} title={donation.title} />
-              </CardContent>
-            </Card>
-          )}
         </Grid>
 
-        {/* Sidebar */}
+        {/* ── Sidebar ── */}
         <Grid size={{ xs: 12, md: 4 }}>
           {/* Donor info */}
           <Card sx={{ mb: 3 }}>
             <CardContent sx={{ p: 3 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>Donor</Typography>
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>{donation.donor.name}</Typography>
-              <Typography variant="body2" color="text.secondary">{donation.donor.phone}</Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>Donor Contact</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <PersonIcon fontSize="small" color="action" />
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>{donation.donor.name}</Typography>
+              </Box>
+              {donation.donor.phone && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <PhoneIcon fontSize="small" color="action" />
+                  <Typography
+                    variant="body2"
+                    component="a"
+                    href={`tel:${donation.donor.phone}`}
+                    sx={{ color: 'primary.main', textDecoration: 'none', fontWeight: 600 }}
+                  >
+                    {donation.donor.phone}
+                  </Typography>
+                </Box>
+              )}
             </CardContent>
           </Card>
 

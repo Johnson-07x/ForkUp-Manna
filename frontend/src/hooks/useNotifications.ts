@@ -5,7 +5,7 @@ export function useNotifications(page = 0) {
   return useQuery({
     queryKey: ['notifications', page],
     queryFn: () => notificationApi.getMy(page).then((r) => r.data.data),
-    refetchInterval: 15_000,
+    refetchInterval: 60_000, // fallback if WS disconnects; real-time via WebSocket
     staleTime: 0,
   });
 }
@@ -14,7 +14,7 @@ export function useUnreadCount() {
   return useQuery({
     queryKey: ['notifications', 'unread-count'],
     queryFn: () => notificationApi.getUnreadCount().then((r) => r.data.data?.unreadCount ?? 0),
-    refetchInterval: 15_000,
+    refetchInterval: 60_000, // fallback only; WS bumps this instantly
     staleTime: 0,
   });
 }

@@ -49,7 +49,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.asList("http://localhost:3000", "http://localhost:5173"));
+        config.setAllowedOrigins(List.of("http://localhost:5173"));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
@@ -88,6 +88,8 @@ public class SecurityConfig {
                         "/auth/forgot-password", "/auth/reset-password").permitAll()
                 .requestMatchers(HttpMethod.GET, "/auth/health").permitAll()
                 .requestMatchers(HttpMethod.GET, "/uploads/images/**").permitAll()
+                // WebSocket HTTP upgrade handshake — real auth happens in STOMP CONNECT via ChannelInterceptor
+                .requestMatchers("/ws/**", "/ws").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class);
