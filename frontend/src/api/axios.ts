@@ -2,7 +2,7 @@ import axios from 'axios';
 import { storage } from '@/utils/storage';
 
 const apiClient = axios.create({
-  baseURL: '/api/v1',
+  baseURL: import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api/v1` : '/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -29,8 +29,9 @@ apiClient.interceptors.response.use(
         const tokens = storage.getTokens();
         if (!tokens?.refreshToken) throw new Error('No refresh token');
 
+        const baseURL = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api/v1` : '/api/v1';
         const { data } = await axios.post<{ data: { accessToken: string } }>(
-          '/api/v1/auth/refresh-token',
+          `${baseURL}/auth/refresh-token`,
           { refreshToken: tokens.refreshToken }
         );
 
